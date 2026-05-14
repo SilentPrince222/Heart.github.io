@@ -116,9 +116,6 @@
             shadowColor: CONFIG.particleShadowColor
         };
 
-        // Pre-calculate colors for all particles to avoid Math.random() in draw loop
-        let particleColors = [];
-
         // Canvas setup
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
@@ -133,13 +130,13 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // Heart shape functions
+        // Heart shape function
         function heartPoint(t, scale = 1) {
             const x = 16 * Math.pow(Math.sin(t), 3);
             const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
             return {
                 x: x * scale * CONFIG.heartScaleMultiplier,
-                y: -y * scale * CONFIG.heartScaleMultiplier // flip for canvas Y
+                y: -y * scale * CONFIG.heartScaleMultiplier // flip Y axis for canvas
             };
         }
 
@@ -175,12 +172,15 @@
                     this.x += Math.cos(this.angle) * CONFIG.chaosSpeed;
                     this.y += Math.sin(this.angle) * CONFIG.chaosYSpeed;
 
-                    if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
-                    if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+                    // Bounce with position clamping
+                    if (this.x < 0) { this.x = 0; this.vx *= -1; }
+                    else if (this.x > canvas.width) { this.x = canvas.width; this.vx *= -1; }
+                    if (this.y < 0) { this.y = 0; this.vy *= -1; }
+                    else if (this.y > canvas.height) { this.y = canvas.height; this.vy *= -1; }
                 } else if (state === 'form') {
                     const target = heartPositions[this.index % heartPositions.length];
-                    const dx = (target.targetX + target.offsetX) - this.x;
-                    const dy = (target.targetY + target.offsetY) - this.y;
+                    const dx = target.targetX - this.x;
+                    const dy = target.targetY - this.y;
                     this.vx += dx * CONFIG.springFactor;
                     this.vy += dy * CONFIG.springFactor;
                     this.vx *= CONFIG.friction;
@@ -204,77 +204,71 @@
             }
         }
 
-        // Initialize particles
-        let particles = [];
-        let heartPositions = [];
-        let animationState = 'idle';
+// Initialize particles
+         let particles = [];
+         let heartPositions = [];
+         let animationState = 'idle';
 
-        function initParticles() {
-            particles = [];
-            heartPositions = generateHeartPositions();
-            for (let i = 0; i < CONFIG.particleCount; i++) {
-                particles.push(new Particle(i));
-            }
-        }
+         function initParticles() {
+             particles = [];
+             heartPositions = generateHeartPositions();
+             for (let i = 0; i < CONFIG.particleCount; i++) {
+                 particles.push(new Particle(i));
+             }
+         }
 
-        function generateHeartPositions() {
-            const positions = [];
-            const scale = Math.min(canvas.width, canvas.height) / CONFIG.heartScaleBase;
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2 + CONFIG.heartPositionOffsetY;
+         function generateHeartPositions() {
+             const positions = [];
+             const scale = Math.min(canvas.width, canvas.height) / CONFIG.heartScaleBase;
+             const centerX = canvas.width / 2;
+             const centerY = canvas.height / 2 + CONFIG.heartPositionOffsetY;
 
-            for (let i = 0; i < CONFIG.particleCount; i++) {
-                const t = Math.random() * Math.PI * 2;
-                const boundary = heartPoint(t, scale);
-                const r = Math.sqrt(Math.random()); // uniform area distribution
-                const x = boundary.x * r;
-                const y = boundary.y * r;
-                const jitter = CONFIG.particleJitter;
-                positions.push({
-                    targetX: centerX + x + (Math.random() - 0.5) * jitter,
-                    targetY: centerY + y + (Math.random() - 0.5) * jitter,
-                    offsetX: 0,
-                    offsetY: 0
-                });
-            }
+             for (let i = 0; i < CONFIG.particleCount; i++) {
+                 const t = Math.random() * Math.PI * 2;
+                 const boundary = heartPoint(t, scale);
+                 const r = Math.sqrt(Math.random()); // uniform area distribution
+                 const x = boundary.x * r;
+                 const y = boundary.y * r;
+                 const jitter = CONFIG.particleJitter;
 
-            // Shuffle to avoid angular ordering
-            for (let i = positions.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [positions[i], positions[j]] = [positions[j], positions[i]];
-            }
+                 positions.push({
+                     targetX: centerX + x + (Math.random() - 0.5) * jitter,
+                     targetY: centerY + y + (Math.random() - 0.5) * jitter
+                 });
+             }
 
-            return positions;
-        }
+             return positions;
+         }
 
-        // Animation loop
-        let startTime = 0;
-        function animate() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+         // Animation loop
+         function animate() {
+             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            particles.forEach(p => p.update(animationState, heartPositions));
-            particles.forEach(p => p.draw());
+             particles.forEach(p => {
+                 p.update(animationState, heartPositions);
+                 p.draw();
+             });
 
-            requestAnimationFrame(animate);
-        }
+             requestAnimationFrame(animate);
+         }
 
-        // Event handling
-        btn.addEventListener('click', () => {
-            startScreen.classList.add('hidden');
-            canvas.classList.add('active');
-            initParticles();
+         // Event handling
+         btn.addEventListener('click', () => {
+             startScreen.classList.add('hidden');
+             canvas.classList.add('active');
+             initParticles();
 
-            setTimeout(() => {
-                animationState = 'chaos';
-            }, CONFIG.chaosDuration);
+             setTimeout(() => {
+                 animationState = 'chaos';
+             }, CONFIG.chaosDuration);
 
-            setTimeout(() => {
-                animationState = 'form';
-            }, CONFIG.chaosDuration + CONFIG.formDelay);
-        });
+             setTimeout(() => {
+                 animationState = 'form';
+             }, CONFIG.chaosDuration + CONFIG.formDelay);
+         });
 
-        // Start animation loop
-        animate();
-    </script>
+         // Start animation loop
+         animate();
+     </script>
 </body>
 </html>
