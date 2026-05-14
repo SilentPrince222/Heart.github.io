@@ -87,22 +87,37 @@
     <script>
         // Configuration
         const CONFIG = {
-            particleCount: 600,
-            heartScaleBase: 1100,
-            heartScaleMultiplier: 12,
-            chaosDuration: 500,
-            formDelay: 2000,
-            particleFontSizeMin: 6,
-            particleFontSizeMax: 14,
-            particleJitter: 4,
-            heartPositionOffsetY: 50,
-            chaosSpeed: 3,
-            chaosYSpeed: 2.5,
-            springFactor: 0.08,
-            friction: 0.92,
-            angleSpeedRange: 0.05,
-            rotationSpeedRange: 0.02
+            particleCount: 2000,
+            heartScaleBase: 100,
+            heartScaleMultiplier: 30,
+            chaosDuration: 1500,
+            formDelay: 1000,
+            particleFontSizeMin: 28,
+            particleFontSizeMax: 48,
+            particleJitter: 10,
+            heartPositionOffsetY: 0,
+            chaosSpeed: 4,
+            chaosYSpeed: 3,
+            springFactor: 0.03,
+            friction: 0.88,
+            angleSpeedRange: 0.03,
+            rotationSpeedRange: 0.01,
+            particleColorBase: 330,
+            particleColorRange: 60,
+            particleShadowBlur: 8,
+            particleShadowColor: 'rgba(255, 77, 109, 0.6)'
         };
+
+        // Pre-calculated values for performance
+        const COLOR_CONFIG = {
+            hueBase: CONFIG.particleColorBase,
+            hueRange: CONFIG.particleColorRange,
+            shadowBlur: CONFIG.particleShadowBlur,
+            shadowColor: CONFIG.particleShadowColor
+        };
+
+        // Pre-calculate colors for all particles to avoid Math.random() in draw loop
+        let particleColors = [];
 
         // Canvas setup
         const canvas = document.getElementById('canvas');
@@ -180,9 +195,9 @@
                 ctx.save();
                 ctx.translate(this.x, this.y);
                 ctx.rotate(this.rotation);
-                ctx.fillStyle = `hsl(${CONFIG.particleColorBase + Math.random()*CONFIG.particleColorRange}, 70%, 60%)`;
-                ctx.shadowBlur = CONFIG.particleGlow.split('px')[0];
-                ctx.shadowColor = CONFIG.particleGlow.split(' ')[1] + ' ' + CONFIG.particleGlow.split(' ')[2] + ' ' + CONFIG.particleGlow.split(' ')[3];
+                ctx.fillStyle = `hsl(${COLOR_CONFIG.hueBase + Math.random()*COLOR_CONFIG.hueRange}, 70%, 60%)`;
+                ctx.shadowBlur = COLOR_CONFIG.shadowBlur;
+                ctx.shadowColor = COLOR_CONFIG.shadowColor;
                 ctx.fillText(this.text, 0, 0);
                 ctx.shadowBlur = 0;
                 ctx.restore();
