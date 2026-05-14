@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Heart Landing Page</title>
     <style>
+        :root {
+            --bg-color: #0a0a0a;
+            --particle-color-base: 330;
+            --particle-color-range: 60;
+            --particle-glow: 8px rgba(255, 77, 109, 0.6);
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -12,9 +20,9 @@
         }
 
         body {
-            background-color: #0a0a0a;
+            background-color: var(--bg-color);
             overflow: hidden;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: var(--font-family);
             height: 100vh;
             display: flex;
             justify-content: center;
@@ -77,47 +85,136 @@
     <canvas id="canvas"></canvas>
 
     <script>
+        // Configuration
+        const CONFIG = {
+            particleCount: 600,
+            heartScaleBase: 1100,
+            heartScaleMultiplier: 12,
+            chaosDuration: 500,
+            formDelay: 2000,
+            particleFontSizeMin: 6,
+            particleFontSizeMax: 14,
+            particleJitter: 4,
+            heartPositionOffsetY: 50,
+            chaosSpeed: 3,
+            chaosYSpeed: 2.5,
+            springFactor: 0.08,
+            friction: 0.92,
+            angleSpeedRange: 0.05,
+            rotationSpeedRange: 0.02
+        };
+
+        // Canvas setup
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         const startScreen = document.getElementById('startScreen');
         const btn = document.getElementById('decryptBtn');
 
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
 
-        const particles = [];
-        const particleCount = 600;
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
 
-        // Classic heart emoji shape (symmetric, cute heart) - parametric equation
+        // Heart shape functions
         function heartPoint(t, scale = 1) {
             const x = 16 * Math.pow(Math.sin(t), 3);
             const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
             return {
-                x: x * scale * 12,
-                y: -y * scale * 12  // flip for canvas coordinates (Y down)
+                x: x * scale * CONFIG.heartScaleMultiplier,
+                y: -y * scale * CONFIG.heartScaleMultiplier // flip for canvas Y
             };
         }
 
-        // Generate a solid filled heart by radial scaling from center
-        function getHeartPositions() {
-            const positions = [];
-            const scale = Math.min(canvas.width, canvas.height) / 1100;
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2 + 50;
+        // Particle class
+        class Particle {
+            constructor(index) {
+                this.index = index;
+                this.text = 'love';
+                this.fontSize = Math.random() * (CONFIG.particleFontSizeMax - CONFIG.particleFontSizeMin) + CONFIG.particleFontSizeMin;
+                this.setFont();
+                this.rotation = Math.random() * Math.PI * 2;
+                this.rotationSpeed = (Math.random() - 0.5) * CONFIG.rotationSpeedRange;
 
-            for (let i = 0; i < particleCount; i++) {
-                // Random angle around the heart
+                this.resetPosition();
+            }
+
+            setFont() {
+                ctx.font = `${this.fontSize}px Inter, sans-serif`;
+            }
+
+            resetPosition() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.vx = 0;
+                this.vy = 0;
+                this.angle = Math.random() * Math.PI * 2;
+                this.angleSpeed = (Math.random() - 0.5) * CONFIG.angleSpeedRange;
+            }
+
+            update(state, heartPositions) {
+                if (state === 'chaos') {
+                    this.angle += this.angleSpeed;
+                    this.x += Math.cos(this.angle) * CONFIG.chaosSpeed;
+                    this.y += Math.sin(this.angle) * CONFIG.chaosYSpeed;
+
+                    if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+                    if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+                } else if (state === 'form') {
+                    const target = heartPositions[this.index % heartPositions.length];
+                    const dx = (target.targetX + target.offsetX) - this.x;
+                    const dy = (target.targetY + target.offsetY) - this.y;
+                    this.vx += dx * CONFIG.springFactor;
+                    this.vy += dy * CONFIG.springFactor;
+                    this.vx *= CONFIG.friction;
+                    this.vy *= CONFIG.friction;
+                    this.x += this.vx;
+                    this.y += this.vy;
+                }
+                this.rotation += this.rotationSpeed;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                ctx.fillStyle = `hsl(${CONFIG.particleColorBase + Math.random()*CONFIG.particleColorRange}, 70%, 60%)`;
+                ctx.shadowBlur = CONFIG.particleGlow.split('px')[0];
+                ctx.shadowColor = CONFIG.particleGlow.split(' ')[1] + ' ' + CONFIG.particleGlow.split(' ')[2] + ' ' + CONFIG.particleGlow.split(' ')[3];
+                ctx.fillText(this.text, 0, 0);
+                ctx.shadowBlur = 0;
+                ctx.restore();
+            }
+        }
+
+        // Initialize particles
+        let particles = [];
+        let heartPositions = [];
+        let animationState = 'idle';
+
+        function initParticles() {
+            particles = [];
+            heartPositions = generateHeartPositions();
+            for (let i = 0; i < CONFIG.particleCount; i++) {
+                particles.push(new Particle(i));
+            }
+        }
+
+        function generateHeartPositions() {
+            const positions = [];
+            const scale = Math.min(canvas.width, canvas.height) / CONFIG.heartScaleBase;
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2 + CONFIG.heartPositionOffsetY;
+
+            for (let i = 0; i < CONFIG.particleCount; i++) {
                 const t = Math.random() * Math.PI * 2;
                 const boundary = heartPoint(t, scale);
-
-                // Radial factor: sqrt for uniform area distribution
-                const r = Math.sqrt(Math.random());
-
+                const r = Math.sqrt(Math.random()); // uniform area distribution
                 const x = boundary.x * r;
                 const y = boundary.y * r;
-
-                // Slight jitter for organic feel
-                const jitter = 4;
+                const jitter = CONFIG.particleJitter;
                 positions.push({
                     targetX: centerX + x + (Math.random() - 0.5) * jitter,
                     targetY: centerY + y + (Math.random() - 0.5) * jitter,
@@ -126,7 +223,7 @@
                 });
             }
 
-            // Shuffle to avoid angular ordering patterns
+            // Shuffle to avoid angular ordering
             for (let i = positions.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [positions[i], positions[j]] = [positions[j], positions[i]];
@@ -135,104 +232,34 @@
             return positions;
         }
 
-        let heartPositions = getHeartPositions();
-
-        class Particle {
-            constructor(index) {
-                this.index = index;
-                this.text = 'love';
-                this.fontSize = Math.random() * 8 + 6;
-                this.setFont();
-                this.rotation = Math.random() * Math.PI * 2; // random initial rotation
-                this.rotationSpeed = (Math.random() - 0.5) * 0.02; // slow rotation drift
-
-                this.x = Math.random() * canvas.width;
-                this.y = Math.random() * canvas.height;
-                this.vx = 0;
-                this.vy = 0;
-                this.friction = 0.92;
-                this.springFactor = 0.08;
-                this.angle = Math.random() * Math.PI * 2;
-                this.angleSpeed = (Math.random() - 0.5) * 0.05;
-                this.radius = 30;
-            }
-
-            setFont() {
-                ctx.font = `${this.fontSize}px Inter, sans-serif`;
-            }
-
-            update(state) {
-                if (state === 'chaos') {
-                    this.angle += this.angleSpeed;
-                    this.x += Math.cos(this.angle) * 3;
-                    this.y += Math.sin(this.angle) * 2.5;
-
-                    if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
-                    if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
-                } else if (state === 'form') {
-                    const target = heartPositions[this.index % heartPositions.length];
-                    const dx = (target.targetX + target.offsetX) - this.x;
-                    const dy = (target.targetY + target.offsetY) - this.y;
-                    this.vx += dx * this.springFactor;
-                    this.vy += dy * this.springFactor;
-                    this.vx *= this.friction;
-                    this.vy *= this.friction;
-                    this.x += this.vx;
-                    this.y += this.vy;
-                }
-                // Slowly drift rotation
-                this.rotation += this.rotationSpeed;
-            }
-
-            draw() {
-                ctx.save();
-                ctx.translate(this.x, this.y);
-                ctx.rotate(this.rotation);
-                ctx.fillStyle = `hsl(${330 + Math.random()*60}, 70%, 60%)`;
-                ctx.shadowBlur = 8;
-                ctx.shadowColor = 'rgba(255, 77, 109, 0.6)';
-                ctx.fillText(this.text, 0, 0);
-                ctx.shadowBlur = 0;
-                ctx.restore();
-            }
-        }
-
-        for (let i = 0; i < particleCount; i++) {
-            particles.push(new Particle(i));
-        }
-
-        let animationState = 'idle';
+        // Animation loop
         let startTime = 0;
-
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            particles.forEach(p => p.update(animationState));
+            particles.forEach(p => p.update(animationState, heartPositions));
             particles.forEach(p => p.draw());
 
             requestAnimationFrame(animate);
         }
 
-        animate();
-
+        // Event handling
         btn.addEventListener('click', () => {
             startScreen.classList.add('hidden');
             canvas.classList.add('active');
+            initParticles();
 
             setTimeout(() => {
                 animationState = 'chaos';
-            }, 500);
+            }, CONFIG.chaosDuration);
 
             setTimeout(() => {
                 animationState = 'form';
-            }, 2000);
+            }, CONFIG.chaosDuration + CONFIG.formDelay);
         });
 
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            heartPositions = getHeartPositions();
-        });
+        // Start animation loop
+        animate();
     </script>
 </body>
 </html>
